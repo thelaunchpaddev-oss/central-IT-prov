@@ -1,5 +1,5 @@
 const express = require('express');
-const session = require('express-session');
+const cookieSession = require('cookie-session');
 const bcrypt = require('bcrypt');
 const rateLimit = require('express-rate-limit');
 const multer = require('multer');
@@ -52,18 +52,14 @@ app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'login.html'));
 });
 
-// Resilient Session Setup for Vercel Serverless
-app.use(session({
-    secret: process.env.SESSION_SECRET || 'central-it-enterprise-secret-key',
-    resave: true,
-    saveUninitialized: true,
-    proxy: true,
-    cookie: { 
-        httpOnly: true, 
-        sameSite: 'lax', 
-        secure: process.env.NODE_ENV === 'production', 
-        maxAge: 1000 * 60 * 60 * 24 
-    }
+// Stateless Cookie Session (Works seamlessly across Vercel Lambdas)
+app.use(cookieSession({
+    name: 'central_it_session',
+    keys: [process.env.SESSION_SECRET || 'central-it-enterprise-secret-key'],
+    maxAge: 24 * 60 * 60 * 1000, // 24 hours
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    httpOnly: true
 }));
 
 const loginLimiter = rateLimit({
@@ -114,17 +110,11 @@ app.post('/api/login', loginLimiter, async (req, res) => {
         
         const match = await bcrypt.compare(password, user.password);
         if (match) {
-            // Guarantee Super Admin role for admin@centralit.com
+            // Guarantee Super Admin role for admin@centralit.com or user role
             const assignedRole = (user.email.toLowerCase() === 'admin@centralit.com') ? 'ADMIN' : user.role;
 
             req.session.user = { id: user.id, name: user.name, role: assignedRole, email: user.email };
-            req.session.save((err) => {
-                if (err) {
-                    console.error('Session save error:', err);
-                    return res.status(500).json({ error: 'Failed to initialize session.' });
-                }
-                return res.json({ redirect: '/dashboard.html' });
-            });
+            return res.json({ redirect: '/dashboard.html' });
         } else { 
             return res.status(401).json({ error: 'Invalid credentials.' }); 
         }
@@ -135,9 +125,8 @@ app.post('/api/login', loginLimiter, async (req, res) => {
 });
 
 app.post('/api/logout', (req, res) => { 
-    req.session.destroy(() => {
-        res.json({ success: true });
-    });
+    req.session = null;
+    res.json({ success: true });
 });
 
 app.get('/api/session', requireAuth, (req, res) => res.json(req.session.user));
@@ -166,7 +155,6 @@ app.post('/api/sites', requireAuth, async (req, res) => {
         const { data, error } = await supabase.from('sites').insert([{ site_code: req.body.site_code, site_name: req.body.site_name }]).select('id').single();
         if (error) return res.status(400).json({ error: 'Site code must be unique.' });
         
-        // Auto-assign site to creating admin user if not global
         if (req.session.user.role !== 'ADMIN') {
             await supabase.from('user_sites').insert([{ user_id: req.session.user.id, site_id: data.id }]);
         }

@@ -1,20 +1,18 @@
 {
-  "name": "central-it-operations-hub",
+  "name": "central-it-prov",
   "version": "1.0.0",
-  "description": "Enterprise IT Management and Hardware Inventory Portal",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.119.0",
-    "bcrypt": "^6.0.0",
-    "bcryptjs": "^2.4.3",
-    "dotenv": "^16.6.1",
-    "express": "^4.22.2",
-    "express-rate-limit": "^7.5.1",
-    "express-session": "^1.19.0",
-    "multer": "^2.2.0",
+    "@supabase/supabase-js": "^2.39.0",
+    "bcrypt": "^5.1.1",
+    "cookie-session": "^2.1.0",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "express-rate-limit": "^7.2.0",
+    "multer": "^1.4.5-lts.1",
     "xlsx": "^0.18.5"
   }
 }
