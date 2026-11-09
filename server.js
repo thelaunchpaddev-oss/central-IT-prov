@@ -11,6 +11,9 @@ require('dotenv').config();
 
 const app = express();
 
+// Trust Vercel Reverse Proxy (Required for HTTPS & Sessions on Vercel)
+app.set('trust proxy', 1);
+
 // Safe Supabase Client Initialization (Prevents Serverless Cold-Start Crashes)
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_KEY;
@@ -460,7 +463,7 @@ app.delete('/api/import/staging', requireAuth, async (req, res) => {
         const { error } = await supabase.from('staged_assets').delete().eq('site_id', parsedSiteId);
         if (error) throw error;
         res.json({ success: true });
-    } catch (err) { res.status(400).json({ error: err.message }); }
+    } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 app.post('/api/import/commit', requireAuth, async (req, res) => {
