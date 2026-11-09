@@ -10,19 +10,32 @@ const { createClient } = require('@supabase/supabase-js');
 require('dotenv').config();
 
 const app = express();
-const PORT = process.env.PORT || 3000;
 
-// Initialize Supabase Client
+// Safe Supabase Client Initialization (Prevents Serverless Cold-Start Crashes)
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_KEY;
+
 if (!supabaseUrl || !supabaseKey) {
     console.error('CRITICAL: SUPABASE_URL or SUPABASE_KEY missing from environment variables.');
 }
-const supabase = createClient(supabaseUrl, supabaseKey);
 
-// Directories
-const uploadDir = path.join(__dirname, 'uploads');
-if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+const supabase = createClient(
+    supabaseUrl || 'https://placeholder.supabase.co', 
+    supabaseKey || 'placeholder-key'
+);
+
+// Safe Temp Storage Directory (Uses /tmp in Serverless Production)
+const uploadDir = process.env.NODE_ENV === 'production' 
+    ? path.join('/tmp', 'uploads') 
+    : path.join(__dirname, 'uploads');
+
+try {
+    if (!fs.existsSync(uploadDir)) {
+        fs.mkdirSync(uploadDir, { recursive: true });
+    }
+} catch (e) {
+    console.warn('Upload directory creation skipped or handled by serverless container environment.');
+}
 
 const upload = multer({ dest: uploadDir, limits: { fileSize: 5 * 1024 * 1024 } });
 
@@ -30,6 +43,11 @@ const upload = multer({ dest: uploadDir, limits: { fileSize: 5 * 1024 * 1024 } }
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public'))); 
+
+// Root Route Fallback for Vercel
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'login.html'));
+});
 
 app.use(session({
     secret: process.env.SESSION_SECRET || 'central-it-enterprise-secret-key',
@@ -44,7 +62,7 @@ const loginLimiter = rateLimit({
 });
 
 // Auth Guards
-const requireAuth = (req, res, next) => req.session.user ? next() : res.status(401).json({ error: 'Unauthorized' });
+const requireAuth = (req, res, next) => req.session?.user ? next() : res.status(401).json({ error: 'Unauthorized' });
 const requireAdmin = (req, res, next) => req.session?.user?.role === 'ADMIN' ? next() : res.status(403).json({ error: 'Admin required.' });
 
 // Public Sites Route (Login Dropdown)
@@ -377,7 +395,7 @@ app.get('/api/import/template/:category', requireAdmin, (req, res) => {
     
     const workbook = xlsx.utils.book_new();
     xlsx.utils.book_append_sheet(workbook, xlsx.utils.json_to_sheet(headers), `${category} Template`);
-    const tempFilePath = path.join(__dirname, 'uploads', `${category}_Template.xlsx`);
+    const tempFilePath = path.join(uploadDir, `${category}_Template.xlsx`);
     xlsx.writeFile(workbook, tempFilePath);
     res.download(tempFilePath, `${category}_Template.xlsx`, () => { if (fs.existsSync(tempFilePath)) fs.unlinkSync(tempFilePath); });
 });
@@ -442,7 +460,7 @@ app.delete('/api/import/staging', requireAuth, async (req, res) => {
         const { error } = await supabase.from('staged_assets').delete().eq('site_id', parsedSiteId);
         if (error) throw error;
         res.json({ success: true });
-    } catch (err) { res.status(500).json({ error: err.message }); }
+    } catch (err) { res.status(400).json({ error: err.message }); }
 });
 
 app.post('/api/import/commit', requireAuth, async (req, res) => {
@@ -506,17 +524,16 @@ app.get('/api/export', requireAuth, async (req, res) => {
 
         const workbook = xlsx.utils.book_new();
         xlsx.utils.book_append_sheet(workbook, xlsx.utils.json_to_sheet(rows), "Live Inventory");
-        const exportPath = path.join(__dirname, 'uploads', `Inventory_Report_${Date.now()}.xlsx`);
+        const exportPath = path.join(uploadDir, `Inventory_Report_${Date.now()}.xlsx`);
         xlsx.writeFile(workbook, exportPath);
         res.download(exportPath, 'Central_IT_Inventory_Report.xlsx', () => { if (fs.existsSync(exportPath)) fs.unlinkSync(exportPath); });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
-
+// Local Development Server Listener
 if (process.env.NODE_ENV !== 'production') {
     const PORT = process.env.PORT || 3000;
-    app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+    app.listen(PORT, () => console.log(`Server running locally on port ${PORT}`));
 }
 
 module.exports = app;
