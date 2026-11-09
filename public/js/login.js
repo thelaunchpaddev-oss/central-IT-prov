@@ -29,32 +29,30 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const originalBtnText = submitBtn.innerHTML;
 
-            // 1. Lock button & show active spinner tied to the fetch lifecycle
             submitBtn.disabled = true;
             submitBtn.classList.add('btn-loading');
             submitBtn.innerHTML = `<span class="spinner-sm"></span> Authenticating...`;
 
             try {
-                // 2. Real async network request
                 const response = await fetch('/api/login', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ email, password })
                 });
-                const data = await response.json();
 
-                if (response.ok) {
-                    // Update text while browser processes redirection
+                const data = await response.json().catch(() => null);
+
+                if (response.ok && data) {
                     submitBtn.innerHTML = `<span class="spinner-sm"></span> Loading Dashboard...`;
                     window.location.href = data.redirect || '/dashboard.html';
                 } else {
-                    // Revert state if login is rejected
-                    if (resultEl) resultEl.innerText = data.error || 'Login failed.';
+                    const errorMsg = data?.error || `HTTP ${response.status}: Login endpoint error.`;
+                    if (resultEl) resultEl.innerText = errorMsg;
                     resetButton();
                 }
             } catch (err) {
                 console.error('Login error:', err);
-                if (resultEl) resultEl.innerText = 'Server connection error.';
+                if (resultEl) resultEl.innerText = `Network Error: ${err.message}`;
                 resetButton();
             }
 
