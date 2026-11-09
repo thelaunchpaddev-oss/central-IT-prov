@@ -110,7 +110,7 @@ app.post('/api/login', loginLimiter, async (req, res) => {
         
         const match = await bcrypt.compare(password, user.password);
         if (match) {
-            // Guarantee Super Admin role for admin@centralit.com or user role
+            // Guarantee Super Admin role for admin@centralit.com or assigned user role
             const assignedRole = (user.email.toLowerCase() === 'admin@centralit.com') ? 'ADMIN' : user.role;
 
             req.session.user = { id: user.id, name: user.name, role: assignedRole, email: user.email };
@@ -579,6 +579,96 @@ app.get('/api/export', requireAuth, async (req, res) => {
         xlsx.writeFile(workbook, exportPath);
         res.download(exportPath, 'Central_IT_Inventory_Report.xlsx', () => { if (fs.existsSync(exportPath)) fs.unlinkSync(exportPath); });
     } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// =========================================================
+// ANALYTICS & WARRANTY TRACKING ROUTES (v1.1)
+// =========================================================
+
+// Aggregated Model Counts (Scoped by Site)
+app.get('/api/analytics/models', requireAuth, async (req, res) => {
+    try {
+        let query = supabase.from('assets').select('category, model');
+        const parsedSiteId = parseInt(req.query.site_id, 10);
+        if (!isNaN(parsedSiteId)) query = query.eq('site_id', parsedSiteId);
+
+        const { data, error } = await query;
+        if (error) throw error;
+
+        // Group by category and model count
+        const modelCounts = (data || []).reduce((acc, item) => {
+            const key = `${item.category}:::${item.model || 'Unknown Model'}`;
+            if (!acc[key]) {
+                acc[key] = { category: item.category, model: item.model || 'Unknown Model', count: 0 };
+            }
+            acc[key].count += 1;
+            return acc;
+        }, {});
+
+        res.json(Object.values(modelCounts).sort((a, b) => b.count - a.count));
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Laptop Warranty Expiration & Health Pipeline
+app.get('/api/analytics/warranty-expirations', requireAuth, async (req, res) => {
+    try {
+        let query = supabase
+            .from('assets')
+            .select('id, assetTag, serialNumber, model, warrantyStart, warrantyEnd, employees(name, email)')
+            .eq('category', 'Laptop');
+
+        const parsedSiteId = parseInt(req.query.site_id, 10);
+        if (!isNaN(parsedSiteId)) query = query.eq('site_id', parsedSiteId);
+
+        const { data, error } = await query;
+        if (error) throw error;
+
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        const daysThreshold = parseInt(req.query.days || '60', 10);
+
+        const laptopsWithWarranty = (data || []).map(laptop => {
+            let status = 'No Warranty Info';
+            let daysRemaining = null;
+
+            if (laptop.warrantyEnd) {
+                const endDate = new Date(laptop.warrantyEnd);
+                const diffTime = endDate - today;
+                daysRemaining = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+                if (daysRemaining < 0) {
+                    status = 'Expired';
+                } else if (daysRemaining <= daysThreshold) {
+                    status = 'Expiring Soon';
+                } else {
+                    status = 'Active';
+                }
+            }
+
+            return {
+                ...laptop,
+                assignedEmployeeName: laptop.employees ? laptop.employees.name : 'Unassigned',
+                daysRemaining,
+                warrantyStatus: status
+            };
+        });
+
+        const summary = {
+            totalLaptops: laptopsWithWarranty.length,
+            activeCount: laptopsWithWarranty.filter(l => l.warrantyStatus === 'Active').length,
+            expiringSoonCount: laptopsWithWarranty.filter(l => l.warrantyStatus === 'Expiring Soon').length,
+            expiredCount: laptopsWithWarranty.filter(l => l.warrantyStatus === 'Expired').length,
+            noInfoCount: laptopsWithWarranty.filter(l => l.warrantyStatus === 'No Warranty Info').length,
+            items: laptopsWithWarranty.sort((a, b) => (a.daysRemaining ?? 9999) - (b.daysRemaining ?? 9999))
+        };
+
+        res.json(summary);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 });
 
 // Local Development Server Listener
