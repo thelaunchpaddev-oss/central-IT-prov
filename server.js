@@ -11,10 +11,10 @@ require('dotenv').config();
 
 const app = express();
 
-// Trust Vercel Reverse Proxy (Required for HTTPS & Sessions on Vercel)
+// Trust Vercel Reverse Proxy
 app.set('trust proxy', 1);
 
-// Safe Supabase Client Initialization (Prevents Serverless Cold-Start Crashes)
+// Safe Supabase Client Initialization
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_KEY;
 
@@ -27,7 +27,7 @@ const supabase = createClient(
     supabaseKey || 'placeholder-key'
 );
 
-// Safe Temp Storage Directory (Uses /tmp in Serverless Production)
+// Safe Temp Storage Directory
 const uploadDir = process.env.NODE_ENV === 'production' 
     ? path.join('/tmp', 'uploads') 
     : path.join(__dirname, 'uploads');
@@ -37,7 +37,7 @@ try {
         fs.mkdirSync(uploadDir, { recursive: true });
     }
 } catch (e) {
-    console.warn('Upload directory creation skipped or handled by serverless container environment.');
+    console.warn('Upload directory skipped.');
 }
 
 const upload = multer({ dest: uploadDir, limits: { fileSize: 5 * 1024 * 1024 } });
@@ -47,7 +47,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public'))); 
 
-// Root Route Fallback for Vercel
+// Root Route Fallback
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'login.html'));
 });
@@ -56,11 +56,16 @@ app.use(session({
     secret: process.env.SESSION_SECRET || 'central-it-enterprise-secret-key',
     resave: false,
     saveUninitialized: false,
-    cookie: { httpOnly: true, sameSite: 'lax', secure: process.env.NODE_ENV === 'production', maxAge: 1000 * 60 * 60 * 24 }
+    cookie: { 
+        httpOnly: true, 
+        sameSite: 'lax', 
+        secure: process.env.NODE_ENV === 'production', 
+        maxAge: 1000 * 60 * 60 * 24 
+    }
 }));
 
 const loginLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000, max: 10,
+    windowMs: 15 * 60 * 1000, max: 15,
     message: { error: 'Too many login attempts. Please try again later.' }
 });
 
@@ -68,7 +73,7 @@ const loginLimiter = rateLimit({
 const requireAuth = (req, res, next) => req.session?.user ? next() : res.status(401).json({ error: 'Unauthorized' });
 const requireAdmin = (req, res, next) => req.session?.user?.role === 'ADMIN' ? next() : res.status(403).json({ error: 'Admin required.' });
 
-// Public Sites Route (Login Dropdown)
+// Public Sites Route
 app.get('/api/public/sites', async (req, res) => {
     try {
         const { data, error } = await supabase.from('sites').select('id, site_name').order('site_name', { ascending: true });
@@ -77,24 +82,52 @@ app.get('/api/public/sites', async (req, res) => {
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// Auth Routes
+// Auth Routes - UPDATED to query system_users table and fallback to users if system_users is empty
 app.post('/api/login', loginLimiter, async (req, res) => {
     try {
-        const { data: user, error } = await supabase.from('users').select('*').eq('email', req.body.email).single();
-        if (error || !user) return res.status(401).json({ error: 'Invalid credentials.' });
+        const email = req.body.email ? req.body.email.trim() : '';
+        const password = req.body.password || '';
+
+        if (!email || !password) {
+            return res.status(400).json({ error: 'Email and password are required.' });
+        }
+
+        // Try querying system_users first, fallback to users table
+        let user = null;
+        let { data: systemUser, error: sysErr } = await supabase.from('system_users').select('*').eq('email', email).maybeSingle();
+
+        if (systemUser) {
+            user = systemUser;
+        } else {
+            let { data: dbUser, error: usrErr } = await supabase.from('users').select('*').eq('email', email).maybeSingle();
+            if (usrErr && sysErr) {
+                console.error('Supabase query error:', sysErr || usrErr);
+                return res.status(500).json({ error: `Database error: ${(sysErr || usrErr).message}` });
+            }
+            user = dbUser;
+        }
+
+        if (!user) {
+            return res.status(401).json({ error: 'Invalid credentials.' });
+        }
         
-        const match = await bcrypt.compare(req.body.password, user.password);
+        const match = await bcrypt.compare(password, user.password);
         if (match) {
             req.session.user = { id: user.id, name: user.name, role: user.role, email: user.email };
-            res.json({ redirect: '/dashboard.html' });
-        } else { res.status(401).json({ error: 'Invalid credentials.' }); }
-    } catch (err) { res.status(500).json({ error: err.message }); }
+            return res.json({ redirect: '/dashboard.html' });
+        } else { 
+            return res.status(401).json({ error: 'Invalid credentials.' }); 
+        }
+    } catch (err) { 
+        console.error('Login Exception:', err);
+        return res.status(500).json({ error: err.message || 'Server connection error.' }); 
+    }
 });
 
 app.post('/api/logout', (req, res) => { req.session.destroy(); res.json({ success: true }); });
 app.get('/api/session', requireAuth, (req, res) => res.json(req.session.user));
 
-// Site Routes & Assignment Persistence
+// Site Routes
 app.get('/api/sites', requireAuth, async (req, res) => {
     try {
         if (req.session.user.role === 'ADMIN') {
@@ -132,7 +165,6 @@ app.delete('/api/sites/:id', requireAdmin, async (req, res) => {
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// Assign Site to User
 app.post('/api/sites/:id/assign', requireAuth, async (req, res) => {
     if (req.session.user.role === 'VIEWER') return res.status(403).json({ error: 'Access denied.' });
     try {
@@ -159,12 +191,10 @@ app.post('/api/sites/:id/assign', requireAuth, async (req, res) => {
 
         res.json({ success: true });
     } catch (err) { 
-        console.error('Site assignment error:', err);
         res.status(500).json({ error: err.message }); 
     }
 });
 
-// Unassign / Revoke Site Access for User
 app.delete('/api/sites/:id/assign', requireAuth, async (req, res) => {
     if (req.session.user.role === 'VIEWER') return res.status(403).json({ error: 'Access denied.' });
     try {
@@ -184,33 +214,34 @@ app.delete('/api/sites/:id/assign', requireAuth, async (req, res) => {
         if (error) throw error;
         res.json({ success: true });
     } catch (err) { 
-        console.error('Site unassign error:', err);
         res.status(500).json({ error: err.message }); 
     }
 });
 
-// Fetch System Users with Assigned Sites
+// Fetch System Users
 app.get('/api/users', requireAdmin, async (req, res) => {
     try {
-        const { data, error } = await supabase
-            .from('users')
+        let { data, error } = await supabase
+            .from('system_users')
             .select('id, name, email, role, user_sites(sites(id, site_code, site_name))');
+
+        if (error || !data || data.length === 0) {
+            const fallback = await supabase
+                .from('users')
+                .select('id, name, email, role, user_sites(sites(id, site_code, site_name))');
+            data = fallback.data;
+            error = fallback.error;
+        }
             
         if (error) throw error;
 
-        const formattedUsers = (data || []).map(u => {
-            const assignedSites = (u.user_sites || [])
-                .map(us => us.sites)
-                .filter(Boolean);
-                
-            return {
-                id: u.id,
-                name: u.name,
-                email: u.email,
-                role: u.role,
-                assignedSites: assignedSites
-            };
-        });
+        const formattedUsers = (data || []).map(u => ({
+            id: u.id,
+            name: u.name,
+            email: u.email,
+            role: u.role,
+            assignedSites: (u.user_sites || []).map(us => us.sites).filter(Boolean)
+        }));
 
         res.json(formattedUsers);
     } catch (err) { res.status(500).json({ error: err.message }); }
@@ -219,21 +250,13 @@ app.get('/api/users', requireAdmin, async (req, res) => {
 app.post('/api/users', requireAdmin, async (req, res) => {
     try {
         const hash = await bcrypt.hash(req.body.password, 10);
-        const { data, error } = await supabase.from('users').insert([{ name: req.body.name, email: req.body.email, password: hash, role: req.body.role }]).select('id').single();
+        const targetTable = 'system_users';
+        const { data, error } = await supabase.from(targetTable).insert([{ name: req.body.name, email: req.body.email, password: hash, role: req.body.role }]).select('id').single();
         if (error) return res.status(400).json({ error: error.message });
 
         const parsedSiteId = parseInt(req.body.site_id, 10);
         if (!isNaN(parsedSiteId)) {
-            const { data: existing } = await supabase
-                .from('user_sites')
-                .select('*')
-                .eq('user_id', data.id)
-                .eq('site_id', parsedSiteId)
-                .maybeSingle();
-
-            if (!existing) {
-                await supabase.from('user_sites').insert([{ user_id: data.id, site_id: parsedSiteId }]);
-            }
+            await supabase.from('user_sites').insert([{ user_id: data.id, site_id: parsedSiteId }]);
         }
 
         res.json({ id: data.id });
@@ -242,7 +265,7 @@ app.post('/api/users', requireAdmin, async (req, res) => {
 
 app.put('/api/users/:id', requireAdmin, async (req, res) => {
     try {
-        const { error } = await supabase.from('users').update({ name: req.body.name, email: req.body.email, role: req.body.role }).eq('id', parseInt(req.params.id, 10));
+        const { error } = await supabase.from('system_users').update({ name: req.body.name, email: req.body.email, role: req.body.role }).eq('id', parseInt(req.params.id, 10));
         if (error) throw error;
         res.json({ success: true });
     } catch (err) { res.status(400).json({ error: err.message }); }
@@ -251,7 +274,7 @@ app.put('/api/users/:id', requireAdmin, async (req, res) => {
 app.put('/api/users/:id/password', requireAdmin, async (req, res) => {
     try {
         const hash = await bcrypt.hash(req.body.password, 10);
-        const { error } = await supabase.from('users').update({ password: hash }).eq('id', parseInt(req.params.id, 10));
+        const { error } = await supabase.from('system_users').update({ password: hash }).eq('id', parseInt(req.params.id, 10));
         if (error) throw error;
         res.json({ success: true });
     } catch (err) { res.status(400).json({ error: err.message }); }
@@ -261,13 +284,13 @@ app.delete('/api/users/:id', requireAdmin, async (req, res) => {
     try {
         const userId = parseInt(req.params.id, 10);
         await supabase.from('user_sites').delete().eq('user_id', userId);
-        const { error } = await supabase.from('users').delete().eq('id', userId);
+        const { error } = await supabase.from('system_users').delete().eq('id', userId);
         if (error) throw error;
         res.json({ success: true });
     } catch (err) { res.status(400).json({ error: err.message }); }
 });
 
-// Asset Routes
+// Assets & Other Routes
 app.get('/api/assets', requireAuth, async (req, res) => {
     try {
         let query = supabase.from('assets').select('*, employees(name)');
@@ -324,7 +347,6 @@ app.delete('/api/assets/:id', requireAuth, async (req, res) => {
     } catch (err) { res.status(400).json({ error: err.message }); }
 });
 
-// Employees & Teams
 app.get('/api/teams', requireAuth, async (req, res) => {
     try {
         const { data, error } = await supabase.from('teams').select('*');
