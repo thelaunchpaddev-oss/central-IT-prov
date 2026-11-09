@@ -298,7 +298,6 @@ async function submitSiteAssignment(e, siteId) {
 }
 window.submitSiteAssignment = submitSiteAssignment;
 
-// Trigger Confirmation Modal for Removing Site Access
 function removeUserSiteAccess(siteId, userId, siteCode, userName) {
     if (!modalWrapper || !modal) return;
 
@@ -530,6 +529,99 @@ async function loadOverviewTelemetry() {
     } catch (err) {
         console.error('Failed to load telemetry:', err);
     }
+
+    // Trigger V1.1 Analytics Load
+    await loadDashboardAnalytics();
+}
+
+async function loadDashboardAnalytics() {
+    if (!currentSiteId) return;
+
+    // 1. Hardware Model Breakdown
+    try {
+        const modelsRes = await fetch(`/api/analytics/models?site_id=${currentSiteId}`);
+        if (modelsRes.ok) {
+            const models = await modelsRes.json();
+            renderModelBreakdown(models);
+        }
+    } catch (e) {
+        console.error('Failed to load model analytics:', e);
+    }
+
+    // 2. Laptop Warranty Telemetry
+    try {
+        const warrantyRes = await fetch(`/api/analytics/warranty-expirations?site_id=${currentSiteId}&days=60`);
+        if (warrantyRes.ok) {
+            const warrantyData = await warrantyRes.json();
+            renderWarrantyHealth(warrantyData);
+        }
+    } catch (e) {
+        console.error('Failed to load warranty analytics:', e);
+    }
+}
+
+function renderModelBreakdown(models) {
+    const container = document.getElementById('modelBreakdownContainer');
+    if (!container) return;
+
+    if (!models || models.length === 0) {
+        container.innerHTML = `<p style="font-size: 13px; color: var(--text-secondary);">No hardware models registered for this site.</p>`;
+        return;
+    }
+
+    container.innerHTML = models.map(m => `
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--border-color);">
+            <div>
+                <strong style="font-size: 13px; color: var(--text-primary); display: block;">${escapeHTML(m.model)}</strong>
+                <span style="font-size: 11px; color: var(--text-secondary);">${escapeHTML(m.category)}</span>
+            </div>
+            <span class="badge staff" style="font-size: 11px; padding: 2px 8px;">${m.count} unit(s)</span>
+        </div>
+    `).join('');
+}
+
+function renderWarrantyHealth(data) {
+    const activeBadge = document.getElementById('statWarrantyActive');
+    const expiringBadge = document.getElementById('statWarrantyExpiring');
+    const expiredBadge = document.getElementById('statWarrantyExpired');
+    const listContainer = document.getElementById('warrantyAlertList');
+
+    if (activeBadge) activeBadge.innerText = `Active: ${data.activeCount}`;
+    if (expiringBadge) expiringBadge.innerText = `Expiring Soon: ${data.expiringSoonCount}`;
+    if (expiredBadge) expiredBadge.innerText = `Expired: ${data.expiredCount}`;
+
+    if (!listContainer) return;
+
+    if (!data.items || data.items.length === 0) {
+        listContainer.innerHTML = `<p style="font-size: 13px; color: var(--text-secondary);">No laptop warranties recorded for this site.</p>`;
+        return;
+    }
+
+    listContainer.innerHTML = data.items.map(l => {
+        let badgeClass = 'viewer';
+        let statusLabel = l.warrantyStatus;
+
+        if (l.warrantyStatus === 'Active') badgeClass = 'open';
+        else if (l.warrantyStatus === 'Expiring Soon') badgeClass = 'warning';
+        else if (l.warrantyStatus === 'Expired') badgeClass = 'high';
+
+        const daysText = l.daysRemaining !== null 
+            ? (l.daysRemaining < 0 ? `${Math.abs(l.daysRemaining)} days ago` : `In ${l.daysRemaining} days`) 
+            : 'No End Date';
+
+        return `
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--border-color);">
+                <div>
+                    <strong style="font-size: 13px; color: var(--text-primary); display: block;">${escapeHTML(l.assetTag)} (${escapeHTML(l.model || 'Laptop')})</strong>
+                    <span style="font-size: 11px; color: var(--text-secondary);">Assigned: ${escapeHTML(l.assignedEmployeeName)}</span>
+                </div>
+                <div style="text-align: right;">
+                    <span class="badge ${badgeClass}" style="font-size: 11px; padding: 2px 6px;">${statusLabel}</span>
+                    <span style="display: block; font-size: 11px; color: var(--text-secondary); margin-top: 2px;">${daysText}</span>
+                </div>
+            </div>
+        `;
+    }).join('');
 }
 
 async function loadAssets() {
@@ -1192,7 +1284,6 @@ async function loadSystemUsers() {
             const badgeClass = usr.role === 'ADMIN' ? 'admin' : usr.role === 'STAFF' ? 'staff' : 'viewer';
             const youLabel = usr.id === currentUserId ? '<span style="color: var(--text-secondary); margin-left: 4px;">(You)</span>' : '';
 
-            // Format Accessible Sites Column with Interactive Revoke Buttons and Confirmation Prompts
             let sitesBadgeHtml = '';
             if (usr.role === 'ADMIN') {
                 sitesBadgeHtml = `<span class="badge staff" style="background: #EEF2FF; color: #4F46E5; border: 1px solid #C7D2FE;">All Sites (Global Admin)</span>`;
