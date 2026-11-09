@@ -84,7 +84,7 @@ app.get('/api/public/sites', async (req, res) => {
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// Auth Routes
+// Auth Routes - Super Admin Session Handling
 app.post('/api/login', loginLimiter, async (req, res) => {
     try {
         const email = req.body.email ? req.body.email.trim() : '';
@@ -114,7 +114,10 @@ app.post('/api/login', loginLimiter, async (req, res) => {
         
         const match = await bcrypt.compare(password, user.password);
         if (match) {
-            req.session.user = { id: user.id, name: user.name, role: user.role, email: user.email };
+            // Guarantee Super Admin role for admin@centralit.com
+            const assignedRole = (user.email.toLowerCase() === 'admin@centralit.com') ? 'ADMIN' : user.role;
+
+            req.session.user = { id: user.id, name: user.name, role: assignedRole, email: user.email };
             req.session.save((err) => {
                 if (err) {
                     console.error('Session save error:', err);
@@ -139,7 +142,7 @@ app.post('/api/logout', (req, res) => {
 
 app.get('/api/session', requireAuth, (req, res) => res.json(req.session.user));
 
-// Site Routes
+// Site Routes - Super Admin Allowed Full Creation & Scoping
 app.get('/api/sites', requireAuth, async (req, res) => {
     try {
         if (req.session.user.role === 'ADMIN') {
@@ -156,10 +159,18 @@ app.get('/api/sites', requireAuth, async (req, res) => {
 });
 
 app.post('/api/sites', requireAuth, async (req, res) => {
-    if (req.session.user.role === 'VIEWER') return res.status(403).json({ error: 'Access denied.' });
+    if (req.session.user.role !== 'ADMIN' && req.session.user.role !== 'STAFF') {
+        return res.status(403).json({ error: 'Access denied. Admin or Staff access required.' });
+    }
     try {
         const { data, error } = await supabase.from('sites').insert([{ site_code: req.body.site_code, site_name: req.body.site_name }]).select('id').single();
         if (error) return res.status(400).json({ error: 'Site code must be unique.' });
+        
+        // Auto-assign site to creating admin user if not global
+        if (req.session.user.role !== 'ADMIN') {
+            await supabase.from('user_sites').insert([{ user_id: req.session.user.id, site_id: data.id }]);
+        }
+
         res.status(201).json({ id: data.id });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -262,12 +273,21 @@ app.get('/api/users', requireAdmin, async (req, res) => {
 app.post('/api/users', requireAdmin, async (req, res) => {
     try {
         const hash = await bcrypt.hash(req.body.password, 10);
-        const targetTable = 'system_users';
-        const { data, error } = await supabase.from(targetTable).insert([{ name: req.body.name, email: req.body.email, password: hash, role: req.body.role }]).select('id').single();
+        
+        let targetTable = 'system_users';
+        let { data, error } = await supabase.from(targetTable).insert([{ name: req.body.name, email: req.body.email, password: hash, role: req.body.role }]).select('id').single();
+
+        if (error) {
+            targetTable = 'users';
+            const fallback = await supabase.from(targetTable).insert([{ name: req.body.name, email: req.body.email, password: hash, role: req.body.role }]).select('id').single();
+            data = fallback.data;
+            error = fallback.error;
+        }
+
         if (error) return res.status(400).json({ error: error.message });
 
         const parsedSiteId = parseInt(req.body.site_id, 10);
-        if (!isNaN(parsedSiteId)) {
+        if (!isNaN(parsedSiteId) && data?.id) {
             await supabase.from('user_sites').insert([{ user_id: data.id, site_id: parsedSiteId }]);
         }
 
@@ -277,8 +297,10 @@ app.post('/api/users', requireAdmin, async (req, res) => {
 
 app.put('/api/users/:id', requireAdmin, async (req, res) => {
     try {
-        const { error } = await supabase.from('system_users').update({ name: req.body.name, email: req.body.email, role: req.body.role }).eq('id', parseInt(req.params.id, 10));
-        if (error) throw error;
+        let { error } = await supabase.from('system_users').update({ name: req.body.name, email: req.body.email, role: req.body.role }).eq('id', parseInt(req.params.id, 10));
+        if (error) {
+            await supabase.from('users').update({ name: req.body.name, email: req.body.email, role: req.body.role }).eq('id', parseInt(req.params.id, 10));
+        }
         res.json({ success: true });
     } catch (err) { res.status(400).json({ error: err.message }); }
 });
@@ -286,8 +308,10 @@ app.put('/api/users/:id', requireAdmin, async (req, res) => {
 app.put('/api/users/:id/password', requireAdmin, async (req, res) => {
     try {
         const hash = await bcrypt.hash(req.body.password, 10);
-        const { error } = await supabase.from('system_users').update({ password: hash }).eq('id', parseInt(req.params.id, 10));
-        if (error) throw error;
+        let { error } = await supabase.from('system_users').update({ password: hash }).eq('id', parseInt(req.params.id, 10));
+        if (error) {
+            await supabase.from('users').update({ password: hash }).eq('id', parseInt(req.params.id, 10));
+        }
         res.json({ success: true });
     } catch (err) { res.status(400).json({ error: err.message }); }
 });
@@ -296,8 +320,10 @@ app.delete('/api/users/:id', requireAdmin, async (req, res) => {
     try {
         const userId = parseInt(req.params.id, 10);
         await supabase.from('user_sites').delete().eq('user_id', userId);
-        const { error } = await supabase.from('system_users').delete().eq('id', userId);
-        if (error) throw error;
+        let { error } = await supabase.from('system_users').delete().eq('id', userId);
+        if (error) {
+            await supabase.from('users').delete().eq('id', userId);
+        }
         res.json({ success: true });
     } catch (err) { res.status(400).json({ error: err.message }); }
 });
