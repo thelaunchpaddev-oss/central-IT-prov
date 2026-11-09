@@ -52,10 +52,12 @@ app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'login.html'));
 });
 
+// Resilient Session Setup for Vercel Serverless
 app.use(session({
     secret: process.env.SESSION_SECRET || 'central-it-enterprise-secret-key',
-    resave: false,
-    saveUninitialized: false,
+    resave: true,
+    saveUninitialized: true,
+    proxy: true,
     cookie: { 
         httpOnly: true, 
         sameSite: 'lax', 
@@ -82,7 +84,7 @@ app.get('/api/public/sites', async (req, res) => {
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// Auth Routes - UPDATED to query system_users table and fallback to users if system_users is empty
+// Auth Routes
 app.post('/api/login', loginLimiter, async (req, res) => {
     try {
         const email = req.body.email ? req.body.email.trim() : '';
@@ -92,7 +94,6 @@ app.post('/api/login', loginLimiter, async (req, res) => {
             return res.status(400).json({ error: 'Email and password are required.' });
         }
 
-        // Try querying system_users first, fallback to users table
         let user = null;
         let { data: systemUser, error: sysErr } = await supabase.from('system_users').select('*').eq('email', email).maybeSingle();
 
@@ -114,7 +115,13 @@ app.post('/api/login', loginLimiter, async (req, res) => {
         const match = await bcrypt.compare(password, user.password);
         if (match) {
             req.session.user = { id: user.id, name: user.name, role: user.role, email: user.email };
-            return res.json({ redirect: '/dashboard.html' });
+            req.session.save((err) => {
+                if (err) {
+                    console.error('Session save error:', err);
+                    return res.status(500).json({ error: 'Failed to initialize session.' });
+                }
+                return res.json({ redirect: '/dashboard.html' });
+            });
         } else { 
             return res.status(401).json({ error: 'Invalid credentials.' }); 
         }
@@ -124,7 +131,12 @@ app.post('/api/login', loginLimiter, async (req, res) => {
     }
 });
 
-app.post('/api/logout', (req, res) => { req.session.destroy(); res.json({ success: true }); });
+app.post('/api/logout', (req, res) => { 
+    req.session.destroy(() => {
+        res.json({ success: true });
+    });
+});
+
 app.get('/api/session', requireAuth, (req, res) => res.json(req.session.user));
 
 // Site Routes
