@@ -1,3 +1,6 @@
+const dns = require('dns');
+dns.setDefaultResultOrder('ipv4first');
+
 const express = require('express');
 const cookieSession = require('cookie-session');
 const bcrypt = require('bcrypt');
@@ -26,6 +29,19 @@ const supabase = createClient(
     supabaseUrl || 'https://placeholder.supabase.co', 
     supabaseKey || 'placeholder-key'
 );
+
+// Global Sanitizer for Cloudflare / Supabase 521/502/504 HTML Gateway Errors
+function sanitizeDbError(errObj, fallback = 'Database service temporarily unavailable. Please try again shortly.') {
+    const rawMsg = errObj?.message || String(errObj || '');
+    if (
+        rawMsg.includes('<!DOCTYPE html>') ||
+        rawMsg.includes('<html') ||
+        rawMsg.includes('fetch failed')
+    ) {
+        return 'Database service temporarily unavailable (Supabase gateway unreachable). Please try again in a moment.';
+    }
+    return rawMsg || fallback;
+}
 
 // Safe Temp Storage Directory
 const uploadDir = process.env.NODE_ENV === 'production' 
@@ -71,16 +87,33 @@ const loginLimiter = rateLimit({
 const requireAuth = (req, res, next) => req.session?.user ? next() : res.status(401).json({ error: 'Unauthorized' });
 const requireAdmin = (req, res, next) => req.session?.user?.role === 'ADMIN' ? next() : res.status(403).json({ error: 'Admin required.' });
 
+// Health Check Endpoint
+app.get('/api/health', async (req, res) => {
+    const hasUrl = Boolean(process.env.SUPABASE_URL);
+    const hasKey = Boolean(process.env.SUPABASE_KEY);
+    try {
+        const probe = await fetch(process.env.SUPABASE_URL || '');
+        res.json({ hasUrl, hasKey, supabaseReachable: probe.ok, status: probe.status });
+    } catch (err) {
+        res.status(503).json({
+            hasUrl,
+            hasKey,
+            supabaseReachable: false,
+            error: sanitizeDbError(err)
+        });
+    }
+});
+
 // Public Sites Route
 app.get('/api/public/sites', async (req, res) => {
     try {
         const { data, error } = await supabase.from('sites').select('id, site_name').order('site_name', { ascending: true });
         if (error) throw error;
         res.json(data || []);
-    } catch (err) { res.status(500).json({ error: err.message }); }
+    } catch (err) { res.status(500).json({ error: sanitizeDbError(err) }); }
 });
 
-// Auth Routes
+// Auth Routes - Super Admin Session Handling
 app.post('/api/login', loginLimiter, async (req, res) => {
     try {
         const email = req.body.email ? req.body.email.trim() : '';
@@ -91,14 +124,24 @@ app.post('/api/login', loginLimiter, async (req, res) => {
         }
 
         let user = null;
-        let { data: systemUser, error: sysErr } = await supabase.from('system_users').select('*').eq('email', email).maybeSingle();
+        const { data: systemUser, error: sysErr } = await supabase
+            .from('system_users')
+            .select('*')
+            .eq('email', email)
+            .maybeSingle();
 
         if (systemUser) {
             user = systemUser;
         } else {
-            let { data: dbUser, error: usrErr } = await supabase.from('users').select('*').eq('email', email).maybeSingle();
+            const { data: dbUser, error: usrErr } = await supabase
+                .from('users')
+                .select('*')
+                .eq('email', email)
+                .maybeSingle();
+
             if (usrErr && sysErr) {
-                return res.status(500).json({ error: `Database error: ${(sysErr || usrErr).message}` });
+                console.error('Supabase query error:', sysErr || usrErr);
+                return res.status(503).json({ error: sanitizeDbError(sysErr || usrErr) });
             }
             user = dbUser;
         }
@@ -116,7 +159,8 @@ app.post('/api/login', loginLimiter, async (req, res) => {
             return res.status(401).json({ error: 'Invalid credentials.' }); 
         }
     } catch (err) { 
-        return res.status(500).json({ error: err.message || 'Server connection error.' }); 
+        console.error('Login Exception:', err);
+        return res.status(500).json({ error: sanitizeDbError(err) }); 
     }
 });
 
@@ -140,7 +184,7 @@ app.get('/api/sites', requireAuth, async (req, res) => {
             const sites = (data || []).map(item => item.sites).filter(Boolean);
             res.json(sites);
         }
-    } catch (err) { res.status(500).json({ error: err.message }); }
+    } catch (err) { res.status(500).json({ error: sanitizeDbError(err) }); }
 });
 
 app.post('/api/sites', requireAuth, async (req, res) => {
@@ -149,14 +193,14 @@ app.post('/api/sites', requireAuth, async (req, res) => {
     }
     try {
         const { data, error } = await supabase.from('sites').insert([{ site_code: req.body.site_code, site_name: req.body.site_name }]).select('id').single();
-        if (error) return res.status(400).json({ error: 'Site code must be unique.' });
+        if (error) return res.status(400).json({ error: sanitizeDbError(error, 'Site code must be unique.') });
         
         if (req.session.user.role !== 'ADMIN') {
             await supabase.from('user_sites').insert([{ user_id: req.session.user.id, site_id: data.id }]);
         }
 
         res.status(201).json({ id: data.id });
-    } catch (err) { res.status(500).json({ error: err.message }); }
+    } catch (err) { res.status(500).json({ error: sanitizeDbError(err) }); }
 });
 
 app.delete('/api/sites/:id', requireAdmin, async (req, res) => {
@@ -168,7 +212,7 @@ app.delete('/api/sites/:id', requireAdmin, async (req, res) => {
         const { error } = await supabase.from('sites').delete().eq('id', siteId);
         if (error) throw error;
         res.json({ success: true });
-    } catch (err) { res.status(500).json({ error: err.message }); }
+    } catch (err) { res.status(500).json({ error: sanitizeDbError(err) }); }
 });
 
 app.post('/api/sites/:id/assign', requireAuth, async (req, res) => {
@@ -184,7 +228,7 @@ app.post('/api/sites/:id/assign', requireAuth, async (req, res) => {
             if (insErr) throw insErr;
         }
         res.json({ success: true });
-    } catch (err) { res.status(500).json({ error: err.message }); }
+    } catch (err) { res.status(500).json({ error: sanitizeDbError(err) }); }
 });
 
 app.delete('/api/sites/:id/assign', requireAuth, async (req, res) => {
@@ -197,7 +241,7 @@ app.delete('/api/sites/:id/assign', requireAuth, async (req, res) => {
         const { error } = await supabase.from('user_sites').delete().eq('site_id', siteId).eq('user_id', userId);
         if (error) throw error;
         res.json({ success: true });
-    } catch (err) { res.status(500).json({ error: err.message }); }
+    } catch (err) { res.status(500).json({ error: sanitizeDbError(err) }); }
 });
 
 // System Users Governance
@@ -219,7 +263,7 @@ app.get('/api/users', requireAdmin, async (req, res) => {
             assignedSites: (u.user_sites || []).map(us => us.sites).filter(Boolean)
         }));
         res.json(formattedUsers);
-    } catch (err) { res.status(500).json({ error: err.message }); }
+    } catch (err) { res.status(500).json({ error: sanitizeDbError(err) }); }
 });
 
 app.post('/api/users', requireAdmin, async (req, res) => {
@@ -232,14 +276,14 @@ app.post('/api/users', requireAdmin, async (req, res) => {
             data = fallback.data;
             error = fallback.error;
         }
-        if (error) return res.status(400).json({ error: error.message });
+        if (error) return res.status(400).json({ error: sanitizeDbError(error) });
 
         const parsedSiteId = parseInt(req.body.site_id, 10);
         if (!isNaN(parsedSiteId) && data?.id) {
             await supabase.from('user_sites').insert([{ user_id: data.id, site_id: parsedSiteId }]);
         }
         res.json({ id: data.id });
-    } catch (err) { res.status(500).json({ error: err.message }); }
+    } catch (err) { res.status(500).json({ error: sanitizeDbError(err) }); }
 });
 
 app.put('/api/users/:id', requireAdmin, async (req, res) => {
@@ -250,7 +294,7 @@ app.put('/api/users/:id', requireAdmin, async (req, res) => {
             await supabase.from('users').update({ name: req.body.name, email: req.body.email, role: req.body.role }).eq('id', userId);
         }
         res.json({ success: true });
-    } catch (err) { res.status(400).json({ error: err.message }); }
+    } catch (err) { res.status(400).json({ error: sanitizeDbError(err) }); }
 });
 
 app.put('/api/users/:id/password', requireAdmin, async (req, res) => {
@@ -262,7 +306,7 @@ app.put('/api/users/:id/password', requireAdmin, async (req, res) => {
             await supabase.from('users').update({ password: hash }).eq('id', userId);
         }
         res.json({ success: true });
-    } catch (err) { res.status(400).json({ error: err.message }); }
+    } catch (err) { res.status(400).json({ error: sanitizeDbError(err) }); }
 });
 
 app.delete('/api/users/:id', requireAdmin, async (req, res) => {
@@ -274,7 +318,7 @@ app.delete('/api/users/:id', requireAdmin, async (req, res) => {
             await supabase.from('users').delete().eq('id', userId);
         }
         res.json({ success: true });
-    } catch (err) { res.status(400).json({ error: err.message }); }
+    } catch (err) { res.status(400).json({ error: sanitizeDbError(err) }); }
 });
 
 // Assets Routes
@@ -292,7 +336,7 @@ app.get('/api/assets', requireAuth, async (req, res) => {
             assignedEmployeeName: a.employees ? a.employees.name : null
         }));
         res.json(formatted);
-    } catch (err) { res.status(500).json({ error: err.message }); }
+    } catch (err) { res.status(500).json({ error: sanitizeDbError(err) }); }
 });
 
 app.post('/api/assets', requireAuth, async (req, res) => {
@@ -308,9 +352,9 @@ app.post('/api/assets', requireAuth, async (req, res) => {
             status: assignedEmployeeId ? 'Assigned' : 'Unassigned', 
             site_id: parsedSiteId
         }]).select('id').single();
-        if (error) return res.status(400).json({ error: error.message });
+        if (error) return res.status(400).json({ error: sanitizeDbError(error) });
         res.json({ id: data.id });
-    } catch (err) { res.status(500).json({ error: err.message }); }
+    } catch (err) { res.status(500).json({ error: sanitizeDbError(err) }); }
 });
 
 app.put('/api/assets/:id', requireAuth, async (req, res) => {
@@ -323,7 +367,7 @@ app.put('/api/assets/:id', requireAuth, async (req, res) => {
         }).eq('id', parseInt(req.params.id, 10));
         if (error) throw error;
         res.json({ success: true });
-    } catch (err) { res.status(400).json({ error: err.message }); }
+    } catch (err) { res.status(400).json({ error: sanitizeDbError(err) }); }
 });
 
 app.delete('/api/assets/:id', requireAuth, async (req, res) => {
@@ -331,7 +375,7 @@ app.delete('/api/assets/:id', requireAuth, async (req, res) => {
         const { error } = await supabase.from('assets').delete().eq('id', parseInt(req.params.id, 10));
         if (error) throw error;
         res.json({ success: true });
-    } catch (err) { res.status(400).json({ error: err.message }); }
+    } catch (err) { res.status(400).json({ error: sanitizeDbError(err) }); }
 });
 
 // Teams & Employees
@@ -340,7 +384,7 @@ app.get('/api/teams', requireAuth, async (req, res) => {
         const { data, error } = await supabase.from('teams').select('*');
         if (error) throw error;
         res.json(data || []);
-    } catch (err) { res.status(500).json({ error: err.message }); }
+    } catch (err) { res.status(500).json({ error: sanitizeDbError(err) }); }
 });
 
 app.post('/api/teams', requireAuth, async (req, res) => {
@@ -348,7 +392,7 @@ app.post('/api/teams', requireAuth, async (req, res) => {
         const { data, error } = await supabase.from('teams').insert([{ teamName: req.body.teamName, description: req.body.description }]).select('id').single();
         if (error) throw error;
         res.json({ id: data.id });
-    } catch (err) { res.status(500).json({ error: err.message }); }
+    } catch (err) { res.status(500).json({ error: sanitizeDbError(err) }); }
 });
 
 app.get('/api/employees', requireAuth, async (req, res) => {
@@ -365,7 +409,7 @@ app.get('/api/employees', requireAuth, async (req, res) => {
             teamName: e.teams ? e.teams.teamName : null
         }));
         res.json(formatted);
-    } catch (err) { res.status(500).json({ error: err.message }); }
+    } catch (err) { res.status(500).json({ error: sanitizeDbError(err) }); }
 });
 
 app.get('/api/employees/:id', requireAuth, async (req, res) => {
@@ -380,7 +424,7 @@ app.get('/api/employees/:id', requireAuth, async (req, res) => {
             employee: { ...employee, teamName: employee.teams ? employee.teams.teamName : null },
             assets: assets || []
         });
-    } catch (err) { res.status(500).json({ error: err.message }); }
+    } catch (err) { res.status(500).json({ error: sanitizeDbError(err) }); }
 });
 
 app.post('/api/employees', requireAuth, async (req, res) => {
@@ -396,7 +440,7 @@ app.post('/api/employees', requireAuth, async (req, res) => {
         }]).select('id').single();
         if (error) throw error;
         res.json({ id: data.id });
-    } catch (err) { res.status(500).json({ error: err.message }); }
+    } catch (err) { res.status(500).json({ error: sanitizeDbError(err) }); }
 });
 
 // Bulk Import & Staging
@@ -434,11 +478,14 @@ app.post('/api/import/upload', requireAuth, upload.single('file'), async (req, r
         }));
 
         const { error } = await supabase.from('staged_assets').insert(stagedEntries);
-        fs.unlinkSync(req.file.path);
+        if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
         
         if (error) throw error;
         res.json({ message: 'Rows staged successfully.' });
-    } catch (err) { res.status(500).json({ error: 'File parsing error or database insertion fault.' }); }
+    } catch (err) { 
+        if (req.file && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+        res.status(500).json({ error: sanitizeDbError(err, 'File parsing error or database insertion fault.') }); 
+    }
 });
 
 app.get('/api/import/staging', requireAuth, async (req, res) => {
@@ -447,7 +494,7 @@ app.get('/api/import/staging', requireAuth, async (req, res) => {
         const { data, error } = await supabase.from('staged_assets').select('*').eq('site_id', parsedSiteId);
         if (error) throw error;
         res.json(data || []);
-    } catch (err) { res.status(500).json({ error: err.message }); }
+    } catch (err) { res.status(500).json({ error: sanitizeDbError(err) }); }
 });
 
 app.put('/api/import/staging/:id', requireAuth, async (req, res) => {
@@ -456,7 +503,7 @@ app.put('/api/import/staging/:id', requireAuth, async (req, res) => {
         const { error } = await supabase.from('staged_assets').update({ assetTag, serialNumber, category, location, model, assignedEmployeeEmail }).eq('id', parseInt(req.params.id, 10));
         if (error) throw error;
         res.json({ success: true });
-    } catch (err) { res.status(400).json({ error: err.message }); }
+    } catch (err) { res.status(400).json({ error: sanitizeDbError(err) }); }
 });
 
 app.delete('/api/import/staging/:id', requireAuth, async (req, res) => {
@@ -464,7 +511,7 @@ app.delete('/api/import/staging/:id', requireAuth, async (req, res) => {
         const { error } = await supabase.from('staged_assets').delete().eq('id', parseInt(req.params.id, 10));
         if (error) throw error;
         res.json({ success: true });
-    } catch (err) { res.status(400).json({ error: err.message }); }
+    } catch (err) { res.status(400).json({ error: sanitizeDbError(err) }); }
 });
 
 app.delete('/api/import/staging', requireAuth, async (req, res) => {
@@ -473,7 +520,7 @@ app.delete('/api/import/staging', requireAuth, async (req, res) => {
         const { error } = await supabase.from('staged_assets').delete().eq('site_id', parsedSiteId);
         if (error) throw error;
         res.json({ success: true });
-    } catch (err) { res.status(500).json({ error: err.message }); }
+    } catch (err) { res.status(500).json({ error: sanitizeDbError(err) }); }
 });
 
 app.post('/api/import/commit', requireAuth, async (req, res) => {
@@ -509,7 +556,7 @@ app.post('/api/import/commit', requireAuth, async (req, res) => {
 
         await supabase.from('staged_assets').delete().eq('site_id', parsedSiteId);
         res.json({ message: 'Batch successfully committed.' });
-    } catch (err) { res.status(500).json({ error: err.message }); }
+    } catch (err) { res.status(500).json({ error: sanitizeDbError(err) }); }
 });
 
 // Excel Export
@@ -540,7 +587,7 @@ app.get('/api/export', requireAuth, async (req, res) => {
         const exportPath = path.join(uploadDir, `Inventory_Report_${Date.now()}.xlsx`);
         xlsx.writeFile(workbook, exportPath);
         res.download(exportPath, 'Central_IT_Inventory_Report.xlsx', () => { if (fs.existsSync(exportPath)) fs.unlinkSync(exportPath); });
-    } catch (err) { res.status(500).json({ error: err.message }); }
+    } catch (err) { res.status(500).json({ error: sanitizeDbError(err) }); }
 });
 
 // Analytics & Warranty Routes
@@ -563,7 +610,7 @@ app.get('/api/analytics/models', requireAuth, async (req, res) => {
         }, {});
 
         res.json(Object.values(modelCounts).sort((a, b) => b.count - a.count));
-    } catch (err) { res.status(500).json({ error: err.message }); }
+    } catch (err) { res.status(500).json({ error: sanitizeDbError(err) }); }
 });
 
 app.get('/api/analytics/warranty-expirations', requireAuth, async (req, res) => {
@@ -613,7 +660,7 @@ app.get('/api/analytics/warranty-expirations', requireAuth, async (req, res) => 
             noInfoCount: laptopsWithWarranty.filter(l => l.warrantyStatus === 'No Warranty Info').length,
             items: laptopsWithWarranty.sort((a, b) => (a.daysRemaining ?? 9999) - (b.daysRemaining ?? 9999))
         });
-    } catch (err) { res.status(500).json({ error: err.message }); }
+    } catch (err) { res.status(500).json({ error: sanitizeDbError(err) }); }
 });
 
 // Dell TechDirect API Sync Route
@@ -677,7 +724,7 @@ app.post('/api/integrations/dell/sync', requireAuth, async (req, res) => {
 
         res.json({ updatedCount });
     } catch (err) {
-        res.status(500).json({ message: err.message });
+        res.status(500).json({ message: sanitizeDbError(err) });
     }
 });
 
