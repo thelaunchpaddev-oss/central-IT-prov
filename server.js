@@ -52,11 +52,11 @@ app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'login.html'));
 });
 
-// Stateless Cookie Session (Works seamlessly across Vercel Lambdas)
+// Stateless Cookie Session
 app.use(cookieSession({
     name: 'central_it_session',
     keys: [process.env.SESSION_SECRET || 'central-it-enterprise-secret-key'],
-    maxAge: 24 * 60 * 60 * 1000, // 24 hours
+    maxAge: 24 * 60 * 60 * 1000,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
     httpOnly: true
@@ -80,7 +80,7 @@ app.get('/api/public/sites', async (req, res) => {
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// Auth Routes - Super Admin Session Handling
+// Auth Routes
 app.post('/api/login', loginLimiter, async (req, res) => {
     try {
         const email = req.body.email ? req.body.email.trim() : '';
@@ -98,7 +98,6 @@ app.post('/api/login', loginLimiter, async (req, res) => {
         } else {
             let { data: dbUser, error: usrErr } = await supabase.from('users').select('*').eq('email', email).maybeSingle();
             if (usrErr && sysErr) {
-                console.error('Supabase query error:', sysErr || usrErr);
                 return res.status(500).json({ error: `Database error: ${(sysErr || usrErr).message}` });
             }
             user = dbUser;
@@ -110,16 +109,13 @@ app.post('/api/login', loginLimiter, async (req, res) => {
         
         const match = await bcrypt.compare(password, user.password);
         if (match) {
-            // Guarantee Super Admin role for admin@centralit.com or assigned user role
             const assignedRole = (user.email.toLowerCase() === 'admin@centralit.com') ? 'ADMIN' : user.role;
-
             req.session.user = { id: user.id, name: user.name, role: assignedRole, email: user.email };
             return res.json({ redirect: '/dashboard.html' });
         } else { 
             return res.status(401).json({ error: 'Invalid credentials.' }); 
         }
     } catch (err) { 
-        console.error('Login Exception:', err);
         return res.status(500).json({ error: err.message || 'Server connection error.' }); 
     }
 });
@@ -131,7 +127,7 @@ app.post('/api/logout', (req, res) => {
 
 app.get('/api/session', requireAuth, (req, res) => res.json(req.session.user));
 
-// Site Routes - Super Admin Allowed Full Creation & Scoping
+// Site Routes
 app.get('/api/sites', requireAuth, async (req, res) => {
     try {
         if (req.session.user.role === 'ADMIN') {
@@ -169,7 +165,6 @@ app.delete('/api/sites/:id', requireAdmin, async (req, res) => {
         if (isNaN(siteId)) return res.status(400).json({ error: 'Invalid Site ID.' });
 
         await supabase.from('user_sites').delete().eq('site_id', siteId);
-        
         const { error } = await supabase.from('sites').delete().eq('id', siteId);
         if (error) throw error;
         res.json({ success: true });
@@ -181,29 +176,15 @@ app.post('/api/sites/:id/assign', requireAuth, async (req, res) => {
     try {
         const siteId = parseInt(req.params.id, 10);
         const userId = parseInt(req.body.user_id, 10);
-        
-        if (isNaN(siteId) || isNaN(userId)) {
-            return res.status(400).json({ error: 'Valid user and site IDs are required.' });
-        }
+        if (isNaN(siteId) || isNaN(userId)) return res.status(400).json({ error: 'Valid user and site IDs are required.' });
 
-        const { data: existing } = await supabase
-            .from('user_sites')
-            .select('*')
-            .eq('user_id', userId)
-            .eq('site_id', siteId)
-            .maybeSingle();
-
+        const { data: existing } = await supabase.from('user_sites').select('*').eq('user_id', userId).eq('site_id', siteId).maybeSingle();
         if (!existing) {
-            const { error: insErr } = await supabase
-                .from('user_sites')
-                .insert([{ user_id: userId, site_id: siteId }]);
+            const { error: insErr } = await supabase.from('user_sites').insert([{ user_id: userId, site_id: siteId }]);
             if (insErr) throw insErr;
         }
-
         res.json({ success: true });
-    } catch (err) { 
-        res.status(500).json({ error: err.message }); 
-    }
+    } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 app.delete('/api/sites/:id/assign', requireAuth, async (req, res) => {
@@ -211,39 +192,23 @@ app.delete('/api/sites/:id/assign', requireAuth, async (req, res) => {
     try {
         const siteId = parseInt(req.params.id, 10);
         const userId = parseInt(req.body.user_id, 10);
-        
-        if (isNaN(siteId) || isNaN(userId)) {
-            return res.status(400).json({ error: 'Valid user and site IDs are required.' });
-        }
+        if (isNaN(siteId) || isNaN(userId)) return res.status(400).json({ error: 'Valid user and site IDs are required.' });
 
-        const { error } = await supabase
-            .from('user_sites')
-            .delete()
-            .eq('site_id', siteId)
-            .eq('user_id', userId);
-
+        const { error } = await supabase.from('user_sites').delete().eq('site_id', siteId).eq('user_id', userId);
         if (error) throw error;
         res.json({ success: true });
-    } catch (err) { 
-        res.status(500).json({ error: err.message }); 
-    }
+    } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// Fetch System Users
+// System Users Governance
 app.get('/api/users', requireAdmin, async (req, res) => {
     try {
-        let { data, error } = await supabase
-            .from('system_users')
-            .select('id, name, email, role, user_sites(sites(id, site_code, site_name))');
-
+        let { data, error } = await supabase.from('system_users').select('id, name, email, role, user_sites(sites(id, site_code, site_name))');
         if (error || !data || data.length === 0) {
-            const fallback = await supabase
-                .from('users')
-                .select('id, name, email, role, user_sites(sites(id, site_code, site_name))');
+            const fallback = await supabase.from('users').select('id, name, email, role, user_sites(sites(id, site_code, site_name))');
             data = fallback.data;
             error = fallback.error;
         }
-            
         if (error) throw error;
 
         const formattedUsers = (data || []).map(u => ({
@@ -253,7 +218,6 @@ app.get('/api/users', requireAdmin, async (req, res) => {
             role: u.role,
             assignedSites: (u.user_sites || []).map(us => us.sites).filter(Boolean)
         }));
-
         res.json(formattedUsers);
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -261,33 +225,29 @@ app.get('/api/users', requireAdmin, async (req, res) => {
 app.post('/api/users', requireAdmin, async (req, res) => {
     try {
         const hash = await bcrypt.hash(req.body.password, 10);
-        
-        let targetTable = 'system_users';
-        let { data, error } = await supabase.from(targetTable).insert([{ name: req.body.name, email: req.body.email, password: hash, role: req.body.role }]).select('id').single();
+        let { data, error } = await supabase.from('system_users').insert([{ name: req.body.name, email: req.body.email, password: hash, role: req.body.role }]).select('id').single();
 
         if (error) {
-            targetTable = 'users';
-            const fallback = await supabase.from(targetTable).insert([{ name: req.body.name, email: req.body.email, password: hash, role: req.body.role }]).select('id').single();
+            const fallback = await supabase.from('users').insert([{ name: req.body.name, email: req.body.email, password: hash, role: req.body.role }]).select('id').single();
             data = fallback.data;
             error = fallback.error;
         }
-
         if (error) return res.status(400).json({ error: error.message });
 
         const parsedSiteId = parseInt(req.body.site_id, 10);
         if (!isNaN(parsedSiteId) && data?.id) {
             await supabase.from('user_sites').insert([{ user_id: data.id, site_id: parsedSiteId }]);
         }
-
         res.json({ id: data.id });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 app.put('/api/users/:id', requireAdmin, async (req, res) => {
     try {
-        let { error } = await supabase.from('system_users').update({ name: req.body.name, email: req.body.email, role: req.body.role }).eq('id', parseInt(req.params.id, 10));
+        const userId = parseInt(req.params.id, 10);
+        let { error } = await supabase.from('system_users').update({ name: req.body.name, email: req.body.email, role: req.body.role }).eq('id', userId);
         if (error) {
-            await supabase.from('users').update({ name: req.body.name, email: req.body.email, role: req.body.role }).eq('id', parseInt(req.params.id, 10));
+            await supabase.from('users').update({ name: req.body.name, email: req.body.email, role: req.body.role }).eq('id', userId);
         }
         res.json({ success: true });
     } catch (err) { res.status(400).json({ error: err.message }); }
@@ -295,10 +255,11 @@ app.put('/api/users/:id', requireAdmin, async (req, res) => {
 
 app.put('/api/users/:id/password', requireAdmin, async (req, res) => {
     try {
+        const userId = parseInt(req.params.id, 10);
         const hash = await bcrypt.hash(req.body.password, 10);
-        let { error } = await supabase.from('system_users').update({ password: hash }).eq('id', parseInt(req.params.id, 10));
+        let { error } = await supabase.from('system_users').update({ password: hash }).eq('id', userId);
         if (error) {
-            await supabase.from('users').update({ password: hash }).eq('id', parseInt(req.params.id, 10));
+            await supabase.from('users').update({ password: hash }).eq('id', userId);
         }
         res.json({ success: true });
     } catch (err) { res.status(400).json({ error: err.message }); }
@@ -316,7 +277,7 @@ app.delete('/api/users/:id', requireAdmin, async (req, res) => {
     } catch (err) { res.status(400).json({ error: err.message }); }
 });
 
-// Assets & Other Routes
+// Assets Routes
 app.get('/api/assets', requireAuth, async (req, res) => {
     try {
         let query = supabase.from('assets').select('*, employees(name)');
@@ -373,6 +334,7 @@ app.delete('/api/assets/:id', requireAuth, async (req, res) => {
     } catch (err) { res.status(400).json({ error: err.message }); }
 });
 
+// Teams & Employees
 app.get('/api/teams', requireAuth, async (req, res) => {
     try {
         const { data, error } = await supabase.from('teams').select('*');
@@ -581,11 +543,7 @@ app.get('/api/export', requireAuth, async (req, res) => {
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// =========================================================
-// ANALYTICS & WARRANTY TRACKING ROUTES (v1.1)
-// =========================================================
-
-// Aggregated Model Counts (Scoped by Site)
+// Analytics & Warranty Routes
 app.get('/api/analytics/models', requireAuth, async (req, res) => {
     try {
         let query = supabase.from('assets').select('category, model');
@@ -595,7 +553,6 @@ app.get('/api/analytics/models', requireAuth, async (req, res) => {
         const { data, error } = await query;
         if (error) throw error;
 
-        // Group by category and model count
         const modelCounts = (data || []).reduce((acc, item) => {
             const key = `${item.category}:::${item.model || 'Unknown Model'}`;
             if (!acc[key]) {
@@ -606,12 +563,9 @@ app.get('/api/analytics/models', requireAuth, async (req, res) => {
         }, {});
 
         res.json(Object.values(modelCounts).sort((a, b) => b.count - a.count));
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
+    } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// Laptop Warranty Expiration & Health Pipeline
 app.get('/api/analytics/warranty-expirations', requireAuth, async (req, res) => {
     try {
         let query = supabase
@@ -627,7 +581,6 @@ app.get('/api/analytics/warranty-expirations', requireAuth, async (req, res) => 
 
         const today = new Date();
         today.setHours(0, 0, 0, 0);
-
         const daysThreshold = parseInt(req.query.days || '60', 10);
 
         const laptopsWithWarranty = (data || []).map(laptop => {
@@ -639,13 +592,9 @@ app.get('/api/analytics/warranty-expirations', requireAuth, async (req, res) => 
                 const diffTime = endDate - today;
                 daysRemaining = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
-                if (daysRemaining < 0) {
-                    status = 'Expired';
-                } else if (daysRemaining <= daysThreshold) {
-                    status = 'Expiring Soon';
-                } else {
-                    status = 'Active';
-                }
+                if (daysRemaining < 0) status = 'Expired';
+                else if (daysRemaining <= daysThreshold) status = 'Expiring Soon';
+                else status = 'Active';
             }
 
             return {
@@ -656,22 +605,82 @@ app.get('/api/analytics/warranty-expirations', requireAuth, async (req, res) => 
             };
         });
 
-        const summary = {
+        res.json({
             totalLaptops: laptopsWithWarranty.length,
             activeCount: laptopsWithWarranty.filter(l => l.warrantyStatus === 'Active').length,
             expiringSoonCount: laptopsWithWarranty.filter(l => l.warrantyStatus === 'Expiring Soon').length,
             expiredCount: laptopsWithWarranty.filter(l => l.warrantyStatus === 'Expired').length,
             noInfoCount: laptopsWithWarranty.filter(l => l.warrantyStatus === 'No Warranty Info').length,
             items: laptopsWithWarranty.sort((a, b) => (a.daysRemaining ?? 9999) - (b.daysRemaining ?? 9999))
-        };
+        });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
 
-        res.json(summary);
+// Dell TechDirect API Sync Route
+app.post('/api/integrations/dell/sync', requireAuth, async (req, res) => {
+    try {
+        const parsedSiteId = parseInt(req.query.site_id, 10);
+        if (isNaN(parsedSiteId)) return res.status(400).json({ error: 'Valid site_id required.' });
+
+        const clientId = process.env.DELL_CLIENT_ID;
+        const clientSecret = process.env.DELL_CLIENT_SECRET;
+
+        if (!clientId || !clientSecret) {
+            return res.status(400).json({ 
+                message: 'DELL_CLIENT_ID and DELL_CLIENT_SECRET environment variables are not set. Showing local database warranty records.' 
+            });
+        }
+
+        const { data: laptops, error } = await supabase
+            .from('assets')
+            .select('id, serialNumber')
+            .eq('site_id', parsedSiteId)
+            .eq('category', 'Laptop');
+
+        if (error) throw error;
+        if (!laptops || laptops.length === 0) return res.json({ updatedCount: 0 });
+
+        const tokenRes = await fetch('https://apigtwb2c.us.dell.com/auth/oauth/v2/token', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: `grant_type=client_credentials&client_id=${encodeURIComponent(clientId)}&client_secret=${encodeURIComponent(clientSecret)}`
+        });
+
+        if (!tokenRes.ok) throw new Error('Dell OAuth authentication failed.');
+        const { access_token } = await tokenRes.json();
+
+        const serviceTags = laptops.map(l => l.serialNumber).filter(Boolean).join(',');
+        const warrantyRes = await fetch(`https://apigtwb2c.us.dell.com/PROD/sbil/eapi/v5/asset-entitlements?servicetags=${encodeURIComponent(serviceTags)}`, {
+            headers: { 'Authorization': `Bearer ${access_token}`, 'Accept': 'application/json' }
+        });
+
+        if (!warrantyRes.ok) throw new Error('Dell Asset Entitlements API call failed.');
+        const entitlements = await warrantyRes.json();
+
+        let updatedCount = 0;
+        for (const item of entitlements) {
+            const tag = item.serviceTag;
+            const validEntitlements = (item.entitlements || []).filter(e => e.endDate);
+            if (validEntitlements.length > 0) {
+                validEntitlements.sort((a, b) => new Date(b.endDate) - new Date(a.endDate));
+                const latestEnd = validEntitlements[0].endDate.split('T')[0];
+                const earliestStart = validEntitlements[validEntitlements.length - 1].startDate?.split('T')[0] || null;
+
+                await supabase
+                    .from('assets')
+                    .update({ warrantyStart: earliestStart, warrantyEnd: latestEnd })
+                    .eq('serialNumber', tag)
+                    .eq('site_id', parsedSiteId);
+                updatedCount++;
+            }
+        }
+
+        res.json({ updatedCount });
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ message: err.message });
     }
 });
 
-// Local Development Server Listener
 if (process.env.NODE_ENV !== 'production') {
     const PORT = process.env.PORT || 3000;
     app.listen(PORT, () => console.log(`Server running locally on port ${PORT}`));

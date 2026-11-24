@@ -3,88 +3,87 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Central IT Operations Hub</title>
+    <title>Central IT - Asset Management</title>
     <link rel="stylesheet" href="/css/style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
-<body>
+<body class="dashboard-body">
     <div class="app-layout">
         <!-- Sidebar Navigation -->
         <aside class="sidebar">
             <div class="sidebar-brand">
-                <div class="brand-logo">
-                    <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01"></path></svg>
-                </div>
+                <div class="brand-logo">IT</div>
                 <div>
                     <h2>CENTRAL IT</h2>
-                    <span>OPERATIONS HUB</span>
+                    <span>ASSET MANAGEMENT</span>
                 </div>
             </div>
 
             <nav class="sidebar-nav">
                 <button class="nav-item tab-btn active" onclick="switchTab('overview')">
-                    <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path></svg>
+                    <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path></svg>
                     <span>Command Overview</span>
                 </button>
 
                 <button class="nav-item tab-btn" onclick="switchTab('assets')">
-                    <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2"></path></svg>
+                    <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2"></path></svg>
                     <span>Asset Inventory</span>
                 </button>
 
                 <button class="nav-item tab-btn admin-only" onclick="switchTab('import')">
-                    <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+                    <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
                     <span>Bulk Import & Staging</span>
                 </button>
 
                 <button class="nav-item tab-btn role-protected" onclick="switchTab('maintenance')">
-                    <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M11 4a2 2 0 114 0v1a2 2 0 01-2 2 2 2 0 01-2-2V4zm-6 8a2 2 0 114 0v1a2 2 0 01-2 2 2 2 0 01-2-2v-1zm12 0a2 2 0 114 0v1a2 2 0 01-2 2 2 2 0 01-2-2v-1z"></path></svg>
+                    <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M11 4a2 2 0 114 0v1a2 2 0 01-2 2 2 2 0 01-2-2V4zm-6 8a2 2 0 114 0v1a2 2 0 01-2 2 2 2 0 01-2-2v-1zm12 0a2 2 0 114 0v1a2 2 0 01-2 2 2 2 0 01-2-2v-1z"></path></svg>
                     <span>Maintenance Queue</span>
                 </button>
 
                 <button class="nav-item tab-btn" onclick="switchTab('directory')">
-                    <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
+                    <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
                     <span>Staff Directory</span>
                 </button>
 
                 <button id="navSitesTab" class="nav-item tab-btn role-protected" onclick="switchTab('sites')">
-                    <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                    <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><circle cx="12" cy="10" r="3"/></svg>
                     <span>Site & Locations</span>
                 </button>
 
                 <button class="nav-item tab-btn admin-only" onclick="switchTab('governance')">
-                    <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+                    <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
                     <span>User Governance</span>
                 </button>
             </nav>
         </aside>
 
-        <!-- Main Content Area -->
+        <!-- Main Wrapper -->
         <main class="main-wrapper">
             <header class="top-header">
                 <h1 id="pageTitle">Command Overview</h1>
                 
                 <div class="header-controls">
-                    <!-- Global Site Selector -->
                     <div class="site-selector-wrapper">
-                        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><circle cx="12" cy="10" r="3"/></svg>
                         <select id="globalSiteSelector" class="site-select-input" onchange="switchGlobalSite(this.value)">
                             <option value="">Loading Sites...</option>
                         </select>
                     </div>
 
-                    <!-- User Profile Dropdown Menu -->
                     <div class="user-profile-menu" id="userProfileMenu">
                         <div class="user-avatar">--</div>
                         <div class="user-meta">
                             <span class="user-name">Loading...</span>
                             <span class="user-role">--</span>
                         </div>
-                        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19 9l-7 7-7-7"></path></svg>
+                        <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19 9l-7 7-7-7"></path></svg>
                         
                         <div class="profile-dropdown" id="profileDropdown">
                             <button class="dropdown-item" onclick="openCurrentProfile(event)">My Profile</button>
-                            <div style="height: 1px; background: var(--border-color); margin: 4px 0;"></div>
-                            <button class="dropdown-item" id="btnSignOut" style="color: var(--danger);">Sign Out</button>
+                            <div style="height: 1px; background: var(--border-color); margin: 3px 0;"></div>
+                            <button class="dropdown-item" id="btnSignOut" style="color: var(--status-danger-text);">Sign Out</button>
                         </div>
                     </div>
                 </div>
@@ -93,92 +92,162 @@
             <div class="content-body">
                 <!-- Overview Tab -->
                 <div id="tab-overview" class="tab-content">
-                    <div class="metrics-grid">
-                        <div class="metric-card">
-                            <span>TOTAL REGISTERED FLEET</span>
-                            <strong id="statTotalAssets">0</strong>
-                        </div>
-                        <div class="metric-card">
-                            <span>DEPLOYED ASSIGNMENTS</span>
-                            <strong id="statAssignedAssets">0</strong>
-                        </div>
-                        <div class="metric-card">
-                            <span>TOTAL DISPLAYS & MONITORS</span>
-                            <strong id="statWfhAssets">0</strong>
-                        </div>
-                        <div class="metric-card">
-                            <span>REPAIR & MAINTENANCE</span>
-                            <strong id="statMaintAssets" style="color: var(--danger);">0</strong>
+                    
+                    <div class="dashboard-hero-banner">
+                        <div class="hero-text-content">
+                            <h2>IT Operations Telemetry</h2>
+                            <p>Hardware breakdown, active assignments, and warranty diagnostics for the selected site.</p>
                         </div>
                     </div>
 
-                    <!-- NEW V1.1 ANALYTICS PANELS: Model Breakdown & Laptop Warranty Telemetry -->
-                    <div class="dashboard-grid" style="margin-bottom: 24px;">
-                        <div class="card">
-                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-                                <h3 style="margin: 0;">Hardware Model Breakdown</h3>
-                                <span style="font-size: 12px; color: var(--text-secondary);">Active Site Models</span>
+                    <div class="metrics-banner-grid">
+                        <div class="metric-banner-card">
+                            <div class="metric-info">
+                                <span>TOTAL FLEET</span>
+                                <strong id="statTotalAssets">0</strong>
                             </div>
-                            <div id="modelBreakdownContainer" style="max-height: 280px; overflow-y: auto;">
-                                <p style="font-size: 13px; color: var(--text-secondary);">Loading model breakdown...</p>
+                            <div class="metric-icon-bubble">
+                                <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
                             </div>
                         </div>
 
-                        <div class="card">
-                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-                                <h3 style="margin: 0;">Laptop Warranty Telemetry</h3>
-                                <span style="font-size: 12px; color: var(--text-secondary);">Strictly Laptop Fleet</span>
+                        <div class="metric-banner-card">
+                            <div class="metric-info">
+                                <span>ASSIGNED</span>
+                                <strong id="statAssignedAssets">0</strong>
                             </div>
-
-                            <div style="display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap;">
-                                <span class="badge open" id="statWarrantyActive">Active: 0</span>
-                                <span class="badge warning" id="statWarrantyExpiring">Expiring Soon: 0</span>
-                                <span class="badge high" id="statWarrantyExpired">Expired: 0</span>
+                            <div class="metric-icon-bubble">
+                                <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
                             </div>
+                        </div>
 
-                            <div id="warrantyAlertList" style="max-height: 220px; overflow-y: auto;">
-                                <p style="font-size: 13px; color: var(--text-secondary);">Loading warranty status...</p>
+                        <div class="metric-banner-card">
+                            <div class="metric-info">
+                                <span>MONITORS</span>
+                                <strong id="statWfhAssets">0</strong>
+                            </div>
+                            <div class="metric-icon-bubble">
+                                <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
+                            </div>
+                        </div>
+
+                        <div class="metric-banner-card">
+                            <div class="metric-info">
+                                <span>MAINTENANCE</span>
+                                <strong id="statMaintAssets" style="color: var(--status-danger-text);">0</strong>
+                            </div>
+                            <div class="metric-icon-bubble">
+                                <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path></svg>
                             </div>
                         </div>
                     </div>
 
                     <div class="dashboard-grid">
                         <div class="card">
-                            <h3>Category Distribution</h3>
-                            <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 24px;">Hardware composition active across selected site region.</p>
-                            <div class="distribution-bars"></div>
+                            <div class="card-header-flex">
+                                <h3>Category Distribution</h3>
+                                <span class="badge staff">LIVE FLEET RATIO</span>
+                            </div>
+
+                            <div class="donut-chart-wrapper">
+                                <div class="donut-svg-container">
+                                    <svg width="110" height="110" viewBox="0 0 42 42" id="donutSvg">
+                                        <circle cx="21" cy="21" r="15.91549430918954" fill="transparent" stroke="#E2E8F0" stroke-width="4"></circle>
+                                        <circle id="donutSegmentLaptops" cx="21" cy="21" r="15.91549430918954" fill="transparent" stroke="#2563EB" stroke-width="4" stroke-dasharray="0 100" stroke-dashoffset="25"></circle>
+                                        <circle id="donutSegmentMonitors" cx="21" cy="21" r="15.91549430918954" fill="transparent" stroke="#D97706" stroke-width="4" stroke-dasharray="0 100" stroke-dashoffset="25"></circle>
+                                        <circle id="donutSegmentPeripherals" cx="21" cy="21" r="15.91549430918954" fill="transparent" stroke="#16A34A" stroke-width="4" stroke-dasharray="0 100" stroke-dashoffset="25"></circle>
+                                    </svg>
+                                    <div class="donut-center-text">
+                                        <strong id="donutTotalCount">0</strong>
+                                        <span>Items</span>
+                                    </div>
+                                </div>
+
+                                <div class="donut-legend">
+                                    <div class="legend-item"><span class="legend-dot" style="background: #2563EB;"></span> Laptops (<span id="legendLaptopsPct">0%</span>)</div>
+                                    <div class="legend-item"><span class="legend-dot" style="background: #D97706;"></span> Monitors (<span id="legendMonitorsPct">0%</span>)</div>
+                                    <div class="legend-item"><span class="legend-dot" style="background: #16A34A;"></span> Peripherals (<span id="legendPeripheralsPct">0%</span>)</div>
+                                </div>
+                            </div>
                         </div>
 
                         <div class="card">
-                            <h3>System Telemetry & Alerts</h3>
-                            <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 24px;">Real-time inventory alerts and maintenance signals.</p>
-                            <ul class="activity-feed" id="activityFeedList"></ul>
+                            <div class="card-header-flex">
+                                <h3>Fleet Allocation Progress</h3>
+                                <span class="badge viewer">PERCENTAGE BREAKDOWN</span>
+                            </div>
+
+                            <div class="custom-bar-group">
+                                <div>
+                                    <div class="bar-item-header"><span>Laptops</span><span id="barLaptopsPctText">0%</span></div>
+                                    <div class="bar-track"><div id="barFillLaptops" class="bar-fill" style="background: #2563EB;"></div></div>
+                                </div>
+                                <div>
+                                    <div class="bar-item-header"><span>Monitors</span><span id="barMonitorsPctText">0%</span></div>
+                                    <div class="bar-track"><div id="barFillMonitors" class="bar-fill" style="background: #D97706;"></div></div>
+                                </div>
+                                <div>
+                                    <div class="bar-item-header"><span>Peripherals</span><span id="barPeripheralsPctText">0%</span></div>
+                                    <div class="bar-track"><div id="barFillPeripherals" class="bar-fill" style="background: #16A34A;"></div></div>
+                                </div>
+                            </div>
                         </div>
                     </div>
+
+                    <div class="dashboard-grid">
+                        <div class="card">
+                            <div class="card-header-flex">
+                                <h3>Hardware Models Breakdown</h3>
+                            </div>
+                            <div id="modelBreakdownContainer" style="max-height: 200px; overflow-y: auto;">
+                                <p style="font-size: 12px; color: var(--text-secondary);">Loading hardware model breakdown...</p>
+                            </div>
+                        </div>
+
+                        <div class="card">
+                            <div class="card-header-flex">
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <h3>Laptop Warranty Telemetry</h3>
+                                    <span style="background: #1E293B; color: #FFFFFF; padding: 2px 6px; border-radius: 3px; font-size: 9.5px; font-weight: 700;">DELL DIRECT</span>
+                                </div>
+                                <button class="btn btn-secondary" onclick="syncDellWarranties()" style="padding: 3px 8px; font-size: 11px;">Sync Dell API</button>
+                            </div>
+
+                            <div style="display: flex; gap: 6px; margin-bottom: 10px;">
+                                <span class="badge open" id="statWarrantyActive">Active: 0</span>
+                                <span class="badge warning" id="statWarrantyExpiring">Expiring Soon: 0</span>
+                                <span class="badge high" id="statWarrantyExpired">Expired: 0</span>
+                            </div>
+
+                            <div id="warrantyAlertList" style="max-height: 160px; overflow-y: auto;">
+                                <p style="font-size: 12px; color: var(--text-secondary);">Loading warranty telemetry...</p>
+                            </div>
+                        </div>
+                    </div>
+
                 </div>
 
                 <!-- Asset Inventory Tab -->
                 <div id="tab-assets" class="tab-content" style="display: none;">
                     <div class="sub-nav-bar">
                         <div class="sub-nav-tabs">
-                            <button class="sub-tab-btn active" onclick="switchSubTab('laptops')">Laptops & Mobile</button>
-                            <button class="sub-tab-btn" onclick="switchSubTab('monitors')">Monitors & Displays</button>
-                            <button class="sub-tab-btn" onclick="switchSubTab('peripherals')">Peripherals & Accessories</button>
+                            <button class="sub-tab-btn active" onclick="switchSubTab('laptops')">Laptops</button>
+                            <button class="sub-tab-btn" onclick="switchSubTab('monitors')">Monitors</button>
+                            <button class="sub-tab-btn" onclick="switchSubTab('peripherals')">Peripherals</button>
                         </div>
-                        <div style="display: flex; gap: 8px;">
-                            <button class="btn btn-secondary" onclick="exportInventory()" style="width: auto;">Export Excel</button>
-                            <button class="btn btn-primary role-protected" onclick="openAssetModal()" style="width: auto;">+ Register Asset</button>
+                        <div style="display: flex; gap: 6px;">
+                            <button class="btn btn-secondary" onclick="exportInventory()">Export Excel</button>
+                            <button class="btn btn-primary role-protected" onclick="openAssetModal()">+ Register Asset</button>
                         </div>
                     </div>
 
-                    <!-- Laptops Subtab -->
                     <div id="subtab-laptops" class="sub-tab-content card">
                         <table class="data-table">
                             <thead>
                                 <tr>
                                     <th>ASSET TAG</th>
                                     <th>MODEL</th>
-                                    <th>SERIAL NUMBER</th>
+                                    <th>SERIAL NUMBER / TAG</th>
                                     <th>STATUS</th>
                                     <th>ASSIGNED TO</th>
                                     <th>WARRANTY PERIOD</th>
@@ -190,7 +259,6 @@
                         </table>
                     </div>
 
-                    <!-- Monitors Subtab -->
                     <div id="subtab-monitors" class="sub-tab-content card" style="display: none;">
                         <table class="data-table">
                             <thead>
@@ -208,7 +276,6 @@
                         </table>
                     </div>
 
-                    <!-- Peripherals Subtab -->
                     <div id="subtab-peripherals" class="sub-tab-content card" style="display: none;">
                         <table class="data-table">
                             <thead>
@@ -226,32 +293,34 @@
                     </div>
                 </div>
 
-                <!-- Staging & Import Tab -->
+                <!-- Staging Sandbox Tab -->
                 <div id="tab-import" class="tab-content" style="display: none;">
-                    <div class="card" style="margin-bottom: 24px;">
-                        <h3>Spreadsheet Batch Upload</h3>
-                        <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 20px;">Download pre-formatted XLSX templates or upload existing Excel data directly into staging validation.</p>
+                    <div class="card" style="margin-bottom: 16px;">
+                        <div class="card-header-flex">
+                            <h3>Spreadsheet Batch Upload</h3>
+                        </div>
+                        <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 14px;">Download XLSX templates or upload existing hardware spreadsheets directly into staging validation.</p>
                         
-                        <div style="display: flex; gap: 12px; flex-wrap: wrap;">
-                            <a href="/api/import/template/Laptop" class="btn btn-secondary" style="width: auto;">Download Laptop Template (.XLSX)</a>
-                            <a href="/api/import/template/Monitor" class="btn btn-secondary" style="width: auto;">Download Monitor Template (.XLSX)</a>
-                            <a href="/api/import/template/Peripheral" class="btn btn-secondary" style="width: auto;">Download Peripheral Template (.XLSX)</a>
+                        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                            <a href="/api/import/template/Laptop" class="btn btn-secondary">Download Laptop Template (.XLSX)</a>
+                            <a href="/api/import/template/Monitor" class="btn btn-secondary">Download Monitor Template (.XLSX)</a>
+                            <a href="/api/import/template/Peripheral" class="btn btn-secondary">Download Peripheral Template (.XLSX)</a>
                         </div>
                     </div>
 
                     <div class="card">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
                             <div>
                                 <h3>Staging Sandbox Workspace</h3>
-                                <p style="font-size: 13px; color: var(--text-secondary);" id="stagingCountText">0 row(s) staged</p>
+                                <p style="font-size: 11.5px; color: var(--text-secondary);" id="stagingCountText">0 row(s) staged</p>
                             </div>
-                            <div style="display: flex; gap: 10px;">
-                                <label class="btn btn-secondary" style="margin: 0; width: auto; cursor: pointer;">
+                            <div style="display: flex; gap: 6px;">
+                                <label class="btn btn-secondary" style="cursor: pointer;">
                                     Upload Excel File
                                     <input type="file" accept=".xlsx, .xls" style="display: none;" onchange="uploadExcelToStaging(event)">
                                 </label>
-                                <button class="btn btn-secondary" onclick="flushStagingSandbox()" style="width: auto;">Clear Staging</button>
-                                <button class="btn btn-primary" onclick="pushStagingToProduction()" style="width: auto;">Import Valid Rows to Fleet</button>
+                                <button class="btn btn-secondary" onclick="flushStagingSandbox()">Clear Staging</button>
+                                <button class="btn btn-primary" onclick="pushStagingToProduction()">Import Valid Rows to Fleet</button>
                             </div>
                         </div>
 
@@ -276,9 +345,9 @@
                 <!-- Maintenance Queue Tab -->
                 <div id="tab-maintenance" class="tab-content" style="display: none;">
                     <div class="card">
-                        <h3>Hardware Repair & Maintenance Pipeline</h3>
-                        <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 24px;">Assets currently undergoing physical diagnostics or technical repair.</p>
-                        
+                        <div class="card-header-flex">
+                            <h3>Hardware Repair & Maintenance Pipeline</h3>
+                        </div>
                         <table class="data-table">
                             <thead>
                                 <tr>
@@ -286,7 +355,7 @@
                                     <th>CATEGORY & MODEL</th>
                                     <th>SERIAL NUMBER</th>
                                     <th>PIPELINE STATUS</th>
-                                    <th>ACTION</th>
+                                    <th style="text-align: right;">ACTION</th>
                                 </tr>
                             </thead>
                             <tbody id="maintenanceTableBody"></tbody>
@@ -298,9 +367,9 @@
                 <div id="tab-directory" class="tab-content" style="display: none;">
                     <div class="dashboard-grid">
                         <div class="card">
-                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
                                 <h3>Staff Directory</h3>
-                                <button class="btn btn-primary role-protected" onclick="openEmployeeModal()" style="width: auto;">+ Register Employee</button>
+                                <button class="btn btn-primary role-protected" onclick="openEmployeeModal()">+ Register Employee</button>
                             </div>
                             <table class="data-table">
                                 <thead>
@@ -308,7 +377,7 @@
                                         <th>NAME</th>
                                         <th>EMAIL</th>
                                         <th>TEAM</th>
-                                        <th>ACTION</th>
+                                        <th style="text-align: right;">ACTION</th>
                                     </tr>
                                 </thead>
                                 <tbody id="employeeTableBody"></tbody>
@@ -316,11 +385,11 @@
                         </div>
 
                         <div class="card">
-                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
                                 <h3>Department Teams</h3>
-                                <button class="btn btn-secondary role-protected" onclick="openTeamModal()" style="width: auto;">+ Create Team</button>
+                                <button class="btn btn-secondary role-protected" onclick="openTeamModal()">+ Create Team</button>
                             </div>
-                            <div id="teamListContainer" style="display: flex; flex-direction: column; gap: 12px;"></div>
+                            <div id="teamListContainer" style="display: flex; flex-direction: column; gap: 8px;"></div>
                         </div>
                     </div>
                 </div>
@@ -328,12 +397,11 @@
                 <!-- Site Locations Tab -->
                 <div id="tab-sites" class="tab-content" style="display: none;">
                     <div class="card">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
                             <div>
                                 <h3>Global Sites & Locations</h3>
-                                <p style="font-size: 13px; color: var(--text-secondary);">Manage regional sites and scope hardware inventories.</p>
                             </div>
-                            <button class="btn btn-primary role-protected" onclick="openSiteModal()" style="width: auto;">+ Add Site Location</button>
+                            <button class="btn btn-primary role-protected" onclick="openSiteModal()">+ Add Site Location</button>
                         </div>
                         <table class="data-table">
                             <thead>
@@ -351,12 +419,11 @@
                 <!-- User Governance Tab -->
                 <div id="tab-governance" class="tab-content" style="display: none;">
                     <div class="card">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
                             <div>
                                 <h3>System Users & Access Controls</h3>
-                                <p style="font-size: 13px; color: var(--text-secondary);">Manage administrative accounts, role privileges, and authentication credentials.</p>
                             </div>
-                            <button class="btn btn-primary admin-only" onclick="openRegisterUserModal()" style="width: auto;">+ Register System User</button>
+                            <button class="btn btn-primary admin-only" onclick="openRegisterUserModal()">+ Register System User</button>
                         </div>
                         <table class="data-table">
                             <thead>
@@ -377,7 +444,7 @@
         </main>
     </div>
 
-    <!-- Application Dynamic Modal Wrapper -->
+    <!-- Application Modal Overlay -->
     <div id="appModal" class="modal-overlay" style="display: none;">
         <div class="modal-content" id="modalContentWrapper"></div>
     </div>
